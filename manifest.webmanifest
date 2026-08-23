@@ -1,0 +1,9 @@
+{
+  "name": "우신고 빠른 영단어 학습기",
+  "short_name": "빠른 영단어",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F6FAFF",
+  "theme_color": "#56B2FF",
+  "description": "우신고 모바일 영단어 플래시카드"
+}

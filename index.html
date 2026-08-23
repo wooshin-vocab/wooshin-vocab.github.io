@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#56B2FF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="영단어 카드">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>우신고 빠른 영단어 학습기</title>
+  <style>
+    :root{--sky:#56B2FF;--sky2:#eaf6ff;--ink:#172033;--muted:#6f7b8c;--line:#dfe7f0;--bg:#f6faff;--card:#fff;--good:#2ba66a;--bad:#ed6a5a}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .app{max-width:480px;margin:0 auto;padding:18px 16px 28px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+    .brand{font-size:19px;font-weight:900;letter-spacing:-.04em}
+    .counter{font-size:13px;font-weight:800;color:#2488d8;background:var(--sky2);padding:8px 10px;border-radius:999px}
+    .progress{height:7px;background:#e5edf5;border-radius:999px;overflow:hidden;margin-bottom:16px}
+    .progress span{display:block;height:100%;background:var(--sky);width:10%;transition:width .25s}
+    .stage{perspective:1100px;height:380px}
+    .card{height:100%;position:relative;transform-style:preserve-3d;transition:transform .42s ease}
+    .card.flipped{transform:rotateY(180deg)}
+    .face{position:absolute;inset:0;background:var(--card);border:1px solid var(--line);border-radius:30px;box-shadow:0 14px 36px rgba(21,34,56,.08);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px;backface-visibility:hidden}
+    .back{transform:rotateY(180deg)}
+    .label{font-size:12px;font-weight:900;letter-spacing:.12em;color:var(--sky);margin-bottom:24px}
+    .word{font-size:46px;font-weight:950;letter-spacing:-.05em;line-height:1.08}
+    .meaning{font-size:34px;font-weight:900;letter-spacing:-.04em;line-height:1.28}
+    .hint{font-size:13px;color:var(--muted);margin-top:24px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    button{min-height:52px;border:1px solid var(--line);border-radius:18px;background:#fff;color:var(--ink);font-size:15px;font-weight:850;cursor:pointer}
+    button:active{transform:scale(.98)}
+    .bad{color:var(--bad)} .good{color:var(--good)}
+    .shuffle{width:100%;margin-top:10px;background:var(--sky);border-color:var(--sky);color:#fff}
+    .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:14px}
+    @media(max-width:370px){.stage{height:345px}.word{font-size:39px}.meaning{font-size:29px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="top">
+      <div class="brand">우신고 빠른 영단어 학습기</div>
+      <div class="counter" id="counter">1 / 10</div>
+    </div>
+    <div class="progress"><span id="bar"></span></div>
+
+    <section class="stage" id="stage" aria-label="플래시카드">
+      <div class="card" id="card">
+        <div class="face">
+          <div class="label">WORD</div>
+          <div class="word" id="word">abandon</div>
+          <div class="hint">카드를 눌러 뜻 보기</div>
+        </div>
+        <div class="face back">
+          <div class="label">MEANING</div>
+          <div class="meaning" id="meaning">버리다, 포기하다</div>
+          <div class="hint">다시 누르면 단어 보기</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="row">
+      <button id="unknown" class="bad" type="button">모름</button>
+      <button id="known" class="good" type="button">암기 완료</button>
+    </div>
+    <div class="row">
+      <button id="prev" type="button">← 이전</button>
+      <button id="next" type="button">다음 →</button>
+    </div>
+    <button id="shuffle" class="shuffle" type="button">랜덤 섞기</button>
+    <div class="foot">모바일 홈 화면에 추가하면 앱처럼 사용할 수 있습니다.</div>
+  </main>
+
+<script src="words.js"></script>
+<script>
+let deck=[...WORDS], index=0, flipped=false;
+const card=document.getElementById("card"), word=document.getElementById("word"),
+meaning=document.getElementById("meaning"), counter=document.getElementById("counter"),
+bar=document.getElementById("bar");
+
+function render(){
+  flipped=false; card.classList.remove("flipped");
+  word.textContent=deck[index].word;
+  meaning.textContent=deck[index].meaning;
+  counter.textContent=`${index+1} / ${deck.length}`;
+  bar.style.width=`${((index+1)/deck.length)*100}%`;
+}
+function flip(){flipped=!flipped;card.classList.toggle("flipped",flipped)}
+function next(){index=(index+1)%deck.length;render()}
+function prev(){index=(index-1+deck.length)%deck.length;render()}
+document.getElementById("stage").addEventListener("click",flip);
+document.getElementById("next").addEventListener("click",next);
+document.getElementById("prev").addEventListener("click",prev);
+document.getElementById("known").addEventListener("click",next);
+document.getElementById("unknown").addEventListener("click",next);
+document.getElementById("shuffle").addEventListener("click",()=>{
+  for(let i=deck.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]]=[deck[j],deck[i]];
+  }
+  index=0;render();
+});
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"))}
+render();
+</script>
+</body>
+</html>
