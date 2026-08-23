@@ -2,8 +2,23 @@
   "name": "우신고 빠른 영단어 학습기",
   "short_name": "빠른 영단어",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#F6FAFF",
   "theme_color": "#56B2FF",
-  "description": "우신고 모바일 영단어 플래시카드"
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

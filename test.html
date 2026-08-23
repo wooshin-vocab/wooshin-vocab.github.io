@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#56B2FF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>수행평가전 테스트 | 우신고 빠른 영단어 학습기</title>
+<style>
+:root{--sky:#56B2FF;--sky2:#EAF6FF;--ink:#172033;--muted:#778394;--line:#DDE6EF;--bg:#F6FAFF;--good:#2BA66A;--bad:#EB6555}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app{max-width:520px;margin:0 auto;padding:18px 16px 30px}.header{display:flex;justify-content:space-between;align-items:center;gap:10px}.brand{font-size:21px;font-weight:950;letter-spacing:-.045em}.badge{font-size:12px;font-weight:900;color:#318EDB;background:var(--sky2);padding:8px 10px;border-radius:999px}.mainnav{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:14px 0}.mainnav a{text-decoration:none;text-align:center;min-height:48px;border-radius:17px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center}.mainnav .active{background:var(--sky);border-color:var(--sky);color:#fff}.panel{background:#fff;border:1px solid var(--line);border-radius:25px;padding:22px}.panel h2{margin:0 0 9px;font-size:22px}.panel p{margin:0;color:var(--muted);font-size:13px;line-height:1.65}.info{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}.info div{border:1px solid var(--line);border-radius:15px;padding:11px 6px;text-align:center}.info b{display:block;font-size:18px}.info small{font-size:11px;color:var(--muted)}button{font-family:inherit}.primary{width:100%;min-height:54px;border:0;border-radius:18px;background:var(--sky);color:white;font-size:16px;font-weight:950}.primary:disabled{opacity:.45}.history{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.6}.quiz{display:none}.qtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.qcount,.timer{font-size:13px;font-weight:900;background:var(--sky2);color:#318EDB;padding:8px 10px;border-radius:999px}.progress{height:7px;background:#E4ECF4;border-radius:999px;overflow:hidden;margin-bottom:14px}.progress span{display:block;height:100%;background:var(--sky)}.qcard{background:#fff;border:1px solid var(--line);border-radius:28px;padding:28px 20px}.qword{text-align:center;font-size:40px;font-weight:950;letter-spacing:-.05em;margin:22px 0}.options{display:grid;gap:9px}.option{min-height:52px;border:1px solid var(--line);border-radius:17px;background:#fff;color:var(--ink);font-size:14px;font-weight:850;text-align:left;padding:12px 14px}.option.selected{border-color:var(--sky);background:var(--sky2)}.quiznav{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.quiznav button{min-height:50px;border-radius:17px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:900}.quiznav .submit{background:var(--sky);border-color:var(--sky);color:#fff}.result{display:none;text-align:center}.score{font-size:48px;font-weight:950;color:#318EDB;margin:12px 0}.wronglist{text-align:left;margin-top:18px}.wrongitem{padding:12px 0;border-top:1px solid var(--line);font-size:13px}.wrongitem b{display:block;font-size:15px;margin-bottom:3px}.warn{margin-top:12px;color:var(--bad);font-size:12px;font-weight:800}
+</style>
+</head>
+<body>
+<main class="app">
+<header class="header"><div class="brand">수행평가전 테스트</div><div class="badge" id="attemptBadge">0 / 5회</div></header>
+<nav class="mainnav"><a href="./">학습</a><a class="active" href="test.html">테스트</a></nav>
+<section class="panel" id="startPanel">
+<h2>테스트 시작</h2>
+<p>전체 단어 중 무작위로 문제를 출제합니다. 단어 1,000개 적용 후에는 자동으로 100문제가 출제되며 제한시간은 최대 30분입니다.</p>
+<div class="info"><div><b id="questionInfo">10</b><small>문제 수</small></div><div><b>30분</b><small>제한시간</small></div><div><b>5회</b><small>최대 응시</small></div></div>
+<button class="primary" id="startBtn" type="button">테스트 시작</button>
+<div class="history" id="history"></div>
+<div class="warn" id="limitMsg"></div>
+</section>
+<section class="quiz" id="quizPanel">
+<div class="qtop"><div class="qcount" id="qcount">1 / 10</div><div class="timer" id="timer">30:00</div></div>
+<div class="progress"><span id="qbar"></span></div>
+<div class="qcard"><div class="qword" id="qword"></div><div class="options" id="options"></div></div>
+<div class="quiznav"><button id="prevBtn" type="button">← 이전</button><button class="submit" id="nextBtn" type="button">다음 →</button></div>
+</section>
+<section class="panel result" id="resultPanel">
+<h2>테스트 완료</h2><div class="score" id="score"></div><p id="resultText"></p>
+<div class="wronglist" id="wrongList"></div>
+<button class="primary" id="againBtn" type="button">테스트 화면으로 돌아가기</button>
+</section>
+</main>
+<script src="words.js"></script>
+<script>
+const TEST_KEY="wooshin-vocab-tests-v3";
+const MAX_ATTEMPTS=5,TIME_LIMIT=30*60,QUESTION_TARGET=100;
+let questions=[],answers=[],index=0,remaining=TIME_LIMIT,timerId=null;
+const $=id=>document.getElementById(id);
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function getHistory(){try{return JSON.parse(localStorage.getItem(TEST_KEY)||"[]")}catch(e){return[]}}
+function saveHistory(h){localStorage.setItem(TEST_KEY,JSON.stringify(h))}
+function refreshStart(){const h=getHistory();$("attemptBadge").textContent=`${h.length} / ${MAX_ATTEMPTS}회`;$("questionInfo").textContent=Math.min(QUESTION_TARGET,WORDS.length);$("history").innerHTML=h.length?`응시 기록: ${h.map((x,i)=>`${i+1}회 ${x.score}/${x.total}`).join(" · ")}`:"아직 응시 기록이 없습니다.";$("startBtn").disabled=h.length>=MAX_ATTEMPTS;$("limitMsg").textContent=h.length>=MAX_ATTEMPTS?"최대 5회 응시를 모두 완료했습니다.":""}
+function start(){const h=getHistory();if(h.length>=MAX_ATTEMPTS)return;questions=shuffle(WORDS).slice(0,Math.min(QUESTION_TARGET,WORDS.length));answers=new Array(questions.length).fill(null);index=0;remaining=TIME_LIMIT;$("startPanel").style.display="none";$("resultPanel").style.display="none";$("quizPanel").style.display="block";render();clearInterval(timerId);timerId=setInterval(()=>{remaining--;renderTimer();if(remaining<=0)finish()},1000)}
+function choicesFor(q){const wrong=shuffle(WORDS.filter(x=>x.word!==q.word)).slice(0,3).map(x=>x.meaning);return shuffle([q.meaning,...wrong])}
+function render(){const q=questions[index];$("qcount").textContent=`${index+1} / ${questions.length}`;$("qbar").style.width=`${((index+1)/questions.length)*100}%`;$("qword").textContent=q.word;const opts=choicesFor(q),box=$("options");box.innerHTML="";opts.forEach(t=>{const b=document.createElement("button");b.type="button";b.className="option"+(answers[index]===t?" selected":"");b.textContent=t;b.addEventListener("click",()=>{answers[index]=t;render()});box.appendChild(b)});$("prevBtn").disabled=index===0;$("nextBtn").textContent=index===questions.length-1?"제출하기":"다음 →";renderTimer()}
+function renderTimer(){const m=Math.floor(remaining/60),s=remaining%60;$("timer").textContent=`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`}
+function finish(){if(!$("quizPanel")||$("quizPanel").style.display==="none")return;clearInterval(timerId);$("quizPanel").style.display="none";let score=0,wrong=[];questions.forEach((q,i)=>{if(answers[i]===q.meaning)score++;else wrong.push({word:q.word,meaning:q.meaning,answer:answers[i]||"미응답"})});const h=getHistory();h.push({score,total:questions.length,at:new Date().toISOString()});saveHistory(h);$("score").textContent=`${score} / ${questions.length}`;$("resultText").textContent=`정답률 ${Math.round(score/questions.length*100)}% · 오답 ${wrong.length}개`;$("wrongList").innerHTML=wrong.length?"<h3>오답 확인</h3>"+wrong.map(x=>`<div class="wrongitem"><b>${x.word}</b>정답: ${x.meaning}<br>선택: ${x.answer}</div>`).join(""):"<div class='wrongitem'><b>전부 정답입니다!</b></div>";$("resultPanel").style.display="block";refreshStart()}
+$("startBtn").addEventListener("click",start);$("prevBtn").addEventListener("click",()=>{if(index>0){index--;render()}});$("nextBtn").addEventListener("click",()=>{if(index===questions.length-1){if(confirm("테스트를 제출할까요?"))finish()}else{index++;render()}});$("againBtn").addEventListener("click",()=>{$("resultPanel").style.display="none";$("startPanel").style.display="block";refreshStart()});
+refreshStart();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+</script>
+</body>
+</html>
