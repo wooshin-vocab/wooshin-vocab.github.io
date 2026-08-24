@@ -29,7 +29,7 @@
 <div class="progress"><span id="bar"></span></div>
 <section id="studyArea">
 <div class="stage" id="stage" tabindex="0" aria-label="플래시카드. 누르면 뜻이 보입니다."><div class="card" id="card">
-<div class="face"><div class="important" id="imp1">★ 중요단어</div><div class="label">WORD</div><div class="wordrow"><div class="word" id="word"></div><button class="speak" id="speakBtn" type="button" aria-label="영단어 발음 듣기">🔊</button></div><button class="auto" id="autoBtn" type="button">자동 발음 OFF</button><div class="voice-row"><select id="accentSelect" aria-label="영어 발음 선택"><option value="us">미국식 발음</option><option value="uk">영국식 발음</option></select><span class="voice-note">사전 음성 우선</span></div><div class="hint">카드를 눌러 뜻 보기</div></div>
+<div class="face"><div class="important" id="imp1">★ 중요단어</div><div class="label">WORD</div><div class="wordrow"><div class="word" id="word"></div><button class="speak" id="speakBtn" type="button" aria-label="영단어 발음 듣기">🔊</button></div><button class="auto" id="autoBtn" type="button">자동 발음 OFF</button><div class="voice-row"><select id="accentSelect" aria-label="영어 발음 선택"><option value="us">미국식 발음</option><option value="uk">영국식 발음</option></select><span class="voice-note" id="voiceStatus">사전 원어민 음원 준비 중</span></div><div class="hint">카드를 눌러 뜻 보기</div></div>
 <div class="face back"><div class="important" id="imp2">★ 중요단어</div><div class="label">MEANING</div><div class="meaning" id="meaning"></div><div class="hint">다시 누르면 단어 보기</div></div>
 </div></div>
 <div class="row"><button class="action bad" id="unknownBtn" type="button">모름</button><button class="action good" id="knownBtn" type="button">암기 완료</button></div>
@@ -51,18 +51,75 @@ const $=id=>document.getElementById(id);const card=$("card"),word=$("word"),mean
 function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function load(){try{const d=JSON.parse(localStorage.getItem(LEARN_KEY)||"{}");(d.known||[]).forEach(x=>state.known.add(Number(x)));(d.unknown||[]).forEach(x=>state.unknown.add(Number(x)))}catch(_){ }try{(JSON.parse(localStorage.getItem(TEST_WRONG_KEY)||"[]")||[]).forEach(x=>state.testWrong.add(Number(x)))}catch(_){ }}
 function save(){try{localStorage.setItem(LEARN_KEY,JSON.stringify({known:[...state.known],unknown:[...state.unknown]}))}catch(_){ }}
-const audioCache=new Map();let currentAudio=null;
+const pronunciationCache=new Map();const preparedAudio=new Map();let currentAudio=null;
+function audioKey(text,accent){return accent+":"+String(text).toLowerCase()}
+function accentPattern(accent){return accent==="uk"?/(?:[_-](?:uk|gb)(?:[_-]|\.|$)|en[-_]gb)/i:/(?:[_-]us(?:[_-]|\.|$)|en[-_]us)/i}
 function bestEnglishVoice(accent){if(!("speechSynthesis" in window))return null;const voices=window.speechSynthesis.getVoices();const locale=accent==="uk"?"en-GB":"en-US";const preferred=["Google US English","Google UK English Female","Google UK English Male","Samantha","Daniel","Microsoft Aria","Microsoft Jenny","Microsoft Sonia"];return preferred.map(n=>voices.find(v=>v.name.includes(n)&&v.lang.toLowerCase().startsWith(locale.toLowerCase()))).find(Boolean)||voices.find(v=>v.lang.toLowerCase()===locale.toLowerCase()&&/google|microsoft|samsung|apple/i.test(v.name))||voices.find(v=>v.lang.toLowerCase()===locale.toLowerCase())||voices.find(v=>v.lang.toLowerCase().startsWith("en-"))||null}
-function fallbackSpeak(text,accent){if(!("speechSynthesis" in window)){showToast("이 브라우저에서는 음성 기능을 사용할 수 없습니다.");return}window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=accent==="uk"?"en-GB":"en-US";u.rate=.82;u.pitch=1;const v=bestEnglishVoice(accent);if(v)u.voice=v;window.speechSynthesis.speak(u)}
-async function say(text){const accent=$("accentSelect")?.value||"us";if(currentAudio){try{currentAudio.pause();currentAudio.currentTime=0}catch(_){}}if("speechSynthesis" in window)window.speechSynthesis.cancel();const cacheKey=accent+":"+text.toLowerCase();try{let audioUrl=audioCache.get(cacheKey);if(audioUrl===undefined){const res=await fetch("https://api.dictionaryapi.dev/api/v2/entries/en/"+encodeURIComponent(text),{cache:"force-cache"});if(!res.ok)throw new Error("dictionary");const data=await res.json();const ph=(data||[]).flatMap(x=>Array.isArray(x.phonetics)?x.phonetics:[]).filter(x=>x&&x.audio);const marker=accent==="uk"?/(_gb_|-gb|uk)/i:/(_us_|-us|us)/i;const hit=ph.find(x=>marker.test(x.audio))||ph[0];audioUrl=hit?.audio||null;if(audioUrl&&audioUrl.startsWith("//"))audioUrl="https:"+audioUrl;audioCache.set(cacheKey,audioUrl)}if(audioUrl){currentAudio=new Audio(audioUrl);await currentAudio.play();return}}catch(_){ }fallbackSpeak(text,accent)}
+function fallbackSpeak(text,accent){if(!("speechSynthesis" in window)){showToast("이 브라우저에서는 대체 음성을 사용할 수 없습니다.");return}window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=accent==="uk"?"en-GB":"en-US";u.rate=.82;u.pitch=1;const v=bestEnglishVoice(accent);if(v)u.voice=v;window.speechSynthesis.speak(u)}
+async function resolvePronunciation(text,accent){
+  const key=audioKey(text,accent);
+  if(pronunciationCache.has(key))return pronunciationCache.get(key);
+  const task=(async()=>{
+    try{
+      const res=await fetch("https://api.dictionaryapi.dev/api/v2/entries/en/"+encodeURIComponent(text),{cache:"no-store",mode:"cors"});
+      if(!res.ok)throw new Error("dictionary");
+      const data=await res.json();
+      const ph=(data||[]).flatMap(x=>Array.isArray(x.phonetics)?x.phonetics:[]).filter(x=>x&&x.audio);
+      const exact=ph.find(x=>accentPattern(accent).test(x.audio));
+      const chosen=exact||ph.find(x=>x.audio);
+      if(!chosen?.audio)return null;
+      let url=chosen.audio;
+      if(url.startsWith("//"))url="https:"+url;
+      return {url,exact:!!exact};
+    }catch(_){return null}
+  })();
+  pronunciationCache.set(key,task);
+  return task;
+}
+async function preparePronunciation(text){
+  const accent=$("accentSelect")?.value||"us",key=audioKey(text,accent),status=$("voiceStatus"),btn=$("speakBtn");
+  if(status)status.textContent="사전 원어민 음원 준비 중";
+  if(btn)btn.disabled=true;
+  const info=await resolvePronunciation(text,accent);
+  if(!state.deck.length||state.deck[state.index]?.word!==text||($("accentSelect")?.value||"us")!==accent)return info;
+  if(info?.url){
+    const a=new Audio();
+    a.preload="auto";a.src=info.url;a.load();
+    preparedAudio.set(key,a);
+    if(status)status.textContent=info.exact?(accent==="uk"?"영국식 사전 원어민 음원":"미국식 사전 원어민 음원"):"사전 원어민 음원 · 선택 억양 대체";
+  }else{
+    preparedAudio.set(key,null);
+    if(status)status.textContent="사전 녹음 없음 · 기기 영어 음성 사용";
+  }
+  if(btn)btn.disabled=false;
+  return info;
+}
+function say(text){
+  const accent=$("accentSelect")?.value||"us",key=audioKey(text,accent);
+  if(currentAudio){try{currentAudio.pause();currentAudio.currentTime=0}catch(_){}}
+  if("speechSynthesis" in window)window.speechSynthesis.cancel();
+  if(preparedAudio.has(key)){
+    const a=preparedAudio.get(key);
+    if(a){
+      currentAudio=a;currentAudio.currentTime=0;
+      const playPromise=currentAudio.play();
+      if(playPromise?.catch)playPromise.catch(()=>{showToast("사전 음원을 다시 불러오는 중입니다.");preparePronunciation(text)});
+      return;
+    }
+    fallbackSpeak(text,accent);
+    return;
+  }
+  showToast("사전 원어민 음원을 준비 중입니다. 잠시 후 다시 눌러 주세요.");
+  preparePronunciation(text);
+}
 function showToast(msg){toast.textContent=msg;clearTimeout(showToast.t);showToast.t=setTimeout(()=>toast.textContent="",1300)}
 function sync(){ $("totalStat").textContent=WORDS.length;$("unknownStat").textContent=state.unknown.size;$("knownStat").textContent=state.known.size;$("unknownCount").textContent=state.unknown.size;$("knownCount").textContent=state.known.size;$("testWrongCount").textContent=state.testWrong.size;$("wrongReviewBtn").style.display=state.testWrong.size?"block":"none";document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b.dataset.mode===state.mode))}
 function build(){if(state.mode==="unknown")state.deck=WORDS.filter(x=>state.unknown.has(x.id));else if(state.mode==="known")state.deck=WORDS.filter(x=>state.known.has(x.id));else if(state.mode==="random")state.deck=shuffle(WORDS);else if(state.mode==="testwrong")state.deck=WORDS.filter(x=>state.testWrong.has(x.id));else state.deck=[...WORDS];state.index=0;render()}
-function render(){sync();if(!state.deck.length){studyArea.style.display="none";emptyArea.style.display="block";counter.textContent="0 / 0";bar.style.width="0%";$("emptyTitle").textContent=state.mode==="unknown"?"모르는 단어가 없습니다":state.mode==="known"?"암기 완료 단어가 없습니다":state.mode==="testwrong"?"테스트 오답이 없습니다":"등록된 단어가 없습니다";$("emptyText").textContent=state.mode==="unknown"?"전체 학습에서 ‘모름’을 누르면 자동으로 모입니다.":state.mode==="known"?"‘암기 완료’를 누른 단어가 자동으로 모입니다.":state.mode==="testwrong"?"테스트에서 틀린 단어가 있으면 여기에 모입니다.":"words.js를 확인해 주세요.";return}studyArea.style.display="block";emptyArea.style.display="none";state.index=Math.max(0,Math.min(state.index,state.deck.length-1));state.flipped=false;card.classList.remove("flipped");const x=state.deck[state.index];word.textContent=x.word;meaning.textContent=x.meaning;$("imp1").classList.toggle("show",!!x.important);$("imp2").classList.toggle("show",!!x.important);counter.textContent=`${state.index+1} / ${state.deck.length}`;bar.style.width=`${((state.index+1)/state.deck.length)*100}%`;if(state.autoSpeak)setTimeout(()=>say(x.word),130)}
+function render(){sync();if(!state.deck.length){studyArea.style.display="none";emptyArea.style.display="block";counter.textContent="0 / 0";bar.style.width="0%";$("emptyTitle").textContent=state.mode==="unknown"?"모르는 단어가 없습니다":state.mode==="known"?"암기 완료 단어가 없습니다":state.mode==="testwrong"?"테스트 오답이 없습니다":"등록된 단어가 없습니다";$("emptyText").textContent=state.mode==="unknown"?"전체 학습에서 ‘모름’을 누르면 자동으로 모입니다.":state.mode==="known"?"‘암기 완료’를 누른 단어가 자동으로 모입니다.":state.mode==="testwrong"?"테스트에서 틀린 단어가 있으면 여기에 모입니다.":"words.js를 확인해 주세요.";return}studyArea.style.display="block";emptyArea.style.display="none";state.index=Math.max(0,Math.min(state.index,state.deck.length-1));state.flipped=false;card.classList.remove("flipped");const x=state.deck[state.index];word.textContent=x.word;meaning.textContent=x.meaning;$("imp1").classList.toggle("show",!!x.important);$("imp2").classList.toggle("show",!!x.important);counter.textContent=`${state.index+1} / ${state.deck.length}`;bar.style.width=`${((state.index+1)/state.deck.length)*100}%`;preparePronunciation(x.word).then(()=>{if(state.autoSpeak)setTimeout(()=>say(x.word),80)})}
 function flip(){if(!state.deck.length)return;state.flipped=!state.flipped;card.classList.toggle("flipped",state.flipped)}
 function next(){if(!state.deck.length)return;state.index=(state.index+1)%state.deck.length;render()}function prev(){if(!state.deck.length)return;state.index=(state.index-1+state.deck.length)%state.deck.length;render()}
 function classify(kind){if(!state.deck.length)return;const x=state.deck[state.index];if(kind==="known"){state.known.add(x.id);state.unknown.delete(x.id);showToast("암기 완료로 저장했습니다.")}else{state.unknown.add(x.id);state.known.delete(x.id);showToast("모르는 단어에 저장했습니다.")}save();if(state.mode==="all"||state.mode==="random"||state.mode==="testwrong"){next();return}const old=state.index;state.deck=state.mode==="unknown"?WORDS.filter(x=>state.unknown.has(x.id)):WORDS.filter(x=>state.known.has(x.id));state.index=state.deck.length?Math.min(old,state.deck.length-1):0;render()}
-$("stage").addEventListener("click",flip);$("stage").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();flip()}});$("speakBtn").addEventListener("click",e=>{e.stopPropagation();if(state.deck.length)say(state.deck[state.index].word)});$("autoBtn").addEventListener("click",e=>{e.stopPropagation();state.autoSpeak=!state.autoSpeak;e.currentTarget.textContent=state.autoSpeak?"자동 발음 ON":"자동 발음 OFF";e.currentTarget.classList.toggle("on",state.autoSpeak);if(state.autoSpeak&&state.deck.length)say(state.deck[state.index].word)});$("nextBtn").addEventListener("click",next);$("prevBtn").addEventListener("click",prev);$("knownBtn").addEventListener("click",()=>classify("known"));$("unknownBtn").addEventListener("click",()=>classify("unknown"));$("shuffleBtn").addEventListener("click",()=>{state.deck=shuffle(state.deck);state.index=0;render();showToast("현재 학습 범위를 섞었습니다.")});document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{state.mode=b.dataset.mode;build()}));$("wrongReviewBtn").addEventListener("click",()=>{state.mode="testwrong";build()});
+$("stage").addEventListener("click",flip);$("stage").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();flip()}});$("speakBtn").addEventListener("click",e=>{e.stopPropagation();if(state.deck.length)say(state.deck[state.index].word)});$("accentSelect").addEventListener("change",()=>{if(state.deck.length)preparePronunciation(state.deck[state.index].word)});$("autoBtn").addEventListener("click",e=>{e.stopPropagation();state.autoSpeak=!state.autoSpeak;e.currentTarget.textContent=state.autoSpeak?"자동 발음 ON":"자동 발음 OFF";e.currentTarget.classList.toggle("on",state.autoSpeak);if(state.autoSpeak&&state.deck.length){preparePronunciation(state.deck[state.index].word).then(()=>say(state.deck[state.index].word))}});$("nextBtn").addEventListener("click",next);$("prevBtn").addEventListener("click",prev);$("knownBtn").addEventListener("click",()=>classify("known"));$("unknownBtn").addEventListener("click",()=>classify("unknown"));$("shuffleBtn").addEventListener("click",()=>{state.deck=shuffle(state.deck);state.index=0;render();showToast("현재 학습 범위를 섞었습니다.")});document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{state.mode=b.dataset.mode;build()}));$("wrongReviewBtn").addEventListener("click",()=>{state.mode="testwrong";build()});
 $("resetBtn").addEventListener("click",()=>{if(!confirm("모름·암기완료·테스트 응시기록·오답기록을 모두 초기화할까요?"))return;state.known.clear();state.unknown.clear();state.testWrong.clear();[LEARN_KEY,TEST_HISTORY_KEY,ACTIVE_TEST_KEY,TEST_WRONG_KEY].forEach(k=>{try{localStorage.removeItem(k)}catch(_){}});state.mode="all";build();showToast("전체 기록을 초기화했습니다.")});
 load();const params=new URLSearchParams(location.search);if(params.get("mode")==="test-wrong"&&state.testWrong.size)state.mode="testwrong";build();if("speechSynthesis" in window){window.speechSynthesis.getVoices();window.speechSynthesis.addEventListener?.("voiceschanged",()=>window.speechSynthesis.getVoices())}if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
 })();
