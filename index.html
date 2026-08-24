@@ -53,6 +53,7 @@ function load(){try{const d=JSON.parse(localStorage.getItem(LEARN_KEY)||"{}");(d
 function save(){try{localStorage.setItem(LEARN_KEY,JSON.stringify({known:[...state.known],unknown:[...state.unknown]}))}catch(_){ }}
 const pronunciationCache=new Map();
 const readyPronunciations=new Map();
+const blobUrls=new Set();
 const pronAudio=$("pronAudio");
 function audioKey(text,accent){return accent+":"+String(text).toLowerCase()}
 function accentPattern(accent){
@@ -105,9 +106,25 @@ async function resolvePronunciation(text,accent){
       const chosen=exact||phonetics.find(x=>x.audio);
       if(!chosen?.audio)return null;
 
-      let url=chosen.audio;
-      if(url.startsWith("//"))url="https:"+url;
-      return {url,exact:!!exact};
+      let remoteUrl=chosen.audio;
+      if(remoteUrl.startsWith("//"))remoteUrl="https:"+remoteUrl;
+
+      let playableUrl=remoteUrl;
+      let viaBlob=false;
+
+      try{
+        const audioRes=await fetch(remoteUrl,{cache:"force-cache",mode:"cors"});
+        if(audioRes.ok){
+          const blob=await audioRes.blob();
+          if(blob.size>0){
+            playableUrl=URL.createObjectURL(blob);
+            blobUrls.add(playableUrl);
+            viaBlob=true;
+          }
+        }
+      }catch(_){}
+
+      return {url:playableUrl,remoteUrl,exact:!!exact,viaBlob};
     }catch(_){
       return null;
     }
@@ -143,8 +160,8 @@ async function preparePronunciation(text){
 
     if(status){
       status.textContent=info.exact
-        ? (accent==="uk"?"영국식 사전 원어민 음원":"미국식 사전 원어민 음원")
-        : "사전 원어민 음원 · 선택 억양 대체";
+        ? (accent==="uk"?"영국식 원어민 음원 준비 완료":"미국식 원어민 음원 준비 완료")
+        : "원어민 음원 준비 완료 · 선택 억양 대체";
     }
   }else{
     readyPronunciations.set(key,null);
@@ -164,7 +181,7 @@ function say(text){
     const info=readyPronunciations.get(key);
 
     if(info?.url){
-      if(pronAudio.dataset.word!==text || pronAudio.dataset.accent!==accent){
+      if(pronAudio.dataset.word!==text || pronAudio.dataset.accent!==accent || pronAudio.src!==info.url){
         pronAudio.pause();
         pronAudio.src=info.url;
         pronAudio.dataset.word=text;
@@ -177,13 +194,14 @@ function say(text){
         const pp=pronAudio.play();
         if(pp?.catch){
           pp.catch(()=>{
-            showToast("사전 음원 재생이 차단되어 기기 영어 음성으로 재생합니다.");
-            fallbackSpeak(text,accent);
+            const status=$("voiceStatus");
+            if(status)status.textContent="원어민 음원 재생 실패 · 🔊을 다시 눌러 주세요";
           });
         }
         return;
       }catch(_){
-        fallbackSpeak(text,accent);
+        const status=$("voiceStatus");
+        if(status)status.textContent="원어민 음원 재생 실패 · 🔊을 다시 눌러 주세요";
         return;
       }
     }
@@ -192,7 +210,6 @@ function say(text){
     return;
   }
 
-  showToast("사전 음원을 준비 중입니다. 잠시 후 다시 눌러 주세요.");
   preparePronunciation(text);
 }
 function showToast(msg){toast.textContent=msg;clearTimeout(showToast.t);showToast.t=setTimeout(()=>toast.textContent="",1300)}
@@ -202,11 +219,10 @@ function render(){sync();if(!state.deck.length){studyArea.style.display="none";e
 function flip(){if(!state.deck.length)return;state.flipped=!state.flipped;card.classList.toggle("flipped",state.flipped)}
 function next(){if(!state.deck.length)return;state.index=(state.index+1)%state.deck.length;render()}function prev(){if(!state.deck.length)return;state.index=(state.index-1+state.deck.length)%state.deck.length;render()}
 function classify(kind){if(!state.deck.length)return;const x=state.deck[state.index];if(kind==="known"){state.known.add(x.id);state.unknown.delete(x.id);showToast("암기 완료로 저장했습니다.")}else{state.unknown.add(x.id);state.known.delete(x.id);showToast("모르는 단어에 저장했습니다.")}save();if(state.mode==="all"||state.mode==="random"||state.mode==="testwrong"){next();return}const old=state.index;state.deck=state.mode==="unknown"?WORDS.filter(x=>state.unknown.has(x.id)):WORDS.filter(x=>state.known.has(x.id));state.index=state.deck.length?Math.min(old,state.deck.length-1):0;render()}
-$("stage").addEventListener("click",flip);$("stage").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();flip()}});$("speakBtn").addEventListener("click",e=>{e.stopPropagation();if(state.deck.length)say(state.deck[state.index].word)});["pointerdown","touchstart","click"].forEach(evt=>$("accentSelect").addEventListener(evt,e=>e.stopPropagation(),{passive:true}));$("accentSelect").addEventListener("change",e=>{e.stopPropagation();readyPronunciations.clear();pronunciationCache.clear();if(state.deck.length)preparePronunciation(state.deck[state.index].word)});$("autoBtn").addEventListener("click",e=>{e.stopPropagation();state.autoSpeak=!state.autoSpeak;e.currentTarget.textContent=state.autoSpeak?"자동 발음 ON":"자동 발음 OFF";e.currentTarget.classList.toggle("on",state.autoSpeak);if(state.autoSpeak&&state.deck.length){preparePronunciation(state.deck[state.index].word).then(()=>say(state.deck[state.index].word))}});$("nextBtn").addEventListener("click",next);$("prevBtn").addEventListener("click",prev);$("knownBtn").addEventListener("click",()=>classify("known"));$("unknownBtn").addEventListener("click",()=>classify("unknown"));$("shuffleBtn").addEventListener("click",()=>{state.deck=shuffle(state.deck);state.index=0;render();showToast("현재 학습 범위를 섞었습니다.")});document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{state.mode=b.dataset.mode;build()}));$("wrongReviewBtn").addEventListener("click",()=>{state.mode="testwrong";build()});
+$("stage").addEventListener("click",flip);$("stage").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();flip()}});$("speakBtn").addEventListener("click",e=>{e.stopPropagation();if(state.deck.length)say(state.deck[state.index].word)});["pointerdown","touchstart","click"].forEach(evt=>$("accentSelect").addEventListener(evt,e=>e.stopPropagation(),{passive:true}));$("accentSelect").addEventListener("change",e=>{e.stopPropagation();readyPronunciations.clear();pronunciationCache.clear();for(const u of blobUrls){try{URL.revokeObjectURL(u)}catch(_){}}blobUrls.clear();if(state.deck.length)preparePronunciation(state.deck[state.index].word)});$("autoBtn").addEventListener("click",e=>{e.stopPropagation();state.autoSpeak=!state.autoSpeak;e.currentTarget.textContent=state.autoSpeak?"자동 발음 ON":"자동 발음 OFF";e.currentTarget.classList.toggle("on",state.autoSpeak);if(state.autoSpeak&&state.deck.length){preparePronunciation(state.deck[state.index].word).then(()=>say(state.deck[state.index].word))}});$("nextBtn").addEventListener("click",next);$("prevBtn").addEventListener("click",prev);$("knownBtn").addEventListener("click",()=>classify("known"));$("unknownBtn").addEventListener("click",()=>classify("unknown"));$("shuffleBtn").addEventListener("click",()=>{state.deck=shuffle(state.deck);state.index=0;render();showToast("현재 학습 범위를 섞었습니다.")});document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{state.mode=b.dataset.mode;build()}));$("wrongReviewBtn").addEventListener("click",()=>{state.mode="testwrong";build()});
 $("resetBtn").addEventListener("click",()=>{if(!confirm("모름·암기완료·테스트 응시기록·오답기록을 모두 초기화할까요?"))return;state.known.clear();state.unknown.clear();state.testWrong.clear();[LEARN_KEY,TEST_HISTORY_KEY,ACTIVE_TEST_KEY,TEST_WRONG_KEY].forEach(k=>{try{localStorage.removeItem(k)}catch(_){}});state.mode="all";build();showToast("전체 기록을 초기화했습니다.")});
 load();const params=new URLSearchParams(location.search);if(params.get("mode")==="test-wrong"&&state.testWrong.size)state.mode="testwrong";build();if("speechSynthesis" in window){window.speechSynthesis.getVoices();window.speechSynthesis.addEventListener?.("voiceschanged",()=>window.speechSynthesis.getVoices())}if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
 })();
 </script>
 </body>
 </html>
-<!-- deploy trigger v4.4 -->
