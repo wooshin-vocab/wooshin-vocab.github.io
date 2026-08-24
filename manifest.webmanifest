@@ -7,9 +7,19 @@
   "orientation": "portrait",
   "background_color": "#F6FAFF",
   "theme_color": "#56B2FF",
-  "description": "우신고 모바일 영단어 플래시카드 및 수행평가전 테스트",
+  "description": "우신고 2학년 2학기 영단어 학습 및 수행평가전 테스트",
   "icons": [
-    {"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
